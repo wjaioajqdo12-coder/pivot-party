@@ -20,20 +20,30 @@
     return id;
   }
 
-  async function handle(res) {
-    if (!res.ok) throw new Error('네트워크 오류 (' + res.status + ')');
-    const data = await res.json();
-    return data;
+  // 응답이 안 오면 ms 뒤에 포기 (폰에서 요청이 멈춰 화면이 굳는 것 방지)
+  async function request(url, opts, ms) {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+    try {
+      const res = await fetch(url, Object.assign({}, opts, ctrl ? { signal: ctrl.signal } : {}));
+      if (!res.ok) throw new Error('네트워크 오류 (' + res.status + ')');
+      return await res.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('timeout');
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function get(params) {
     const q = new URLSearchParams(Object.assign({ t: Date.now() }, params)).toString();
-    return handle(await fetch(API + '?' + q, { method: 'GET', cache: 'no-store' }));
+    return request(API + '?' + q, { method: 'GET', cache: 'no-store' }, 15000);
   }
 
   // Content-Type을 지정하지 않으면 text/plain으로 가서 CORS 사전 요청 없이 Apps Script에 도착해요.
   async function post(body) {
-    return handle(await fetch(API, { method: 'POST', body: JSON.stringify(body) }));
+    return request(API, { method: 'POST', body: JSON.stringify(body) }, 25000);
   }
 
   let toastTimer;

@@ -378,10 +378,10 @@
     ], '대기 중인 신청곡이 없어요.', true);
 
     $('playedCount').textContent = state.played.length + '곡';
-    fillList($('played'), state.played, (it) => [actBtn('↩ 대기로', 'ghost', () => setStatus(it, 'waiting'))], '아직 틀어 준 곡이 없어요.');
+    fillList($('played'), state.played, (it) => [ytLink(it), actBtn('↩ 대기로', 'ghost', () => setStatus(it, 'waiting'))], '아직 틀어 준 곡이 없어요.');
 
     $('removedCount').textContent = state.removed.length + '곡';
-    fillList($('removed'), state.removed, (it) => [actBtn('↩ 복구', 'ghost', () => setStatus(it, 'waiting'))], '삭제한 곡이 없어요.');
+    fillList($('removed'), state.removed, (it) => [ytLink(it), actBtn('↩ 복구', 'ghost', () => setStatus(it, 'waiting'))], '삭제한 곡이 없어요.');
     renderAuto();
     sync();
   }
@@ -445,8 +445,7 @@
   }
 
   // ---------- 자동 재생 (유튜브) ----------
-  const AP = { on: false, ready: false, player: null, api: null, songId: null, songTitle: '', videos: [], vi: 0, busy: false, advancing: false, ended: false, msg: '' };
-  const PLAYER_ERRORS = [2, 5, 100, 101, 150];
+  const AP = { on: false, ready: false, player: null, api: null, songId: null, songTitle: '', videos: [], vi: 0, busy: false, advancing: false, ended: false, triedMore: false, msg: '' };
 
   function loadYT() {
     if (window.YT && window.YT.Player) return Promise.resolve();
@@ -524,7 +523,7 @@
 
   async function playSong(song) {
     AP.busy = true;
-    AP.songId = song.id; AP.songTitle = song.title; AP.videos = []; AP.vi = 0; AP.ended = false;
+    AP.songId = song.id; AP.songTitle = song.title; AP.videos = []; AP.vi = 0; AP.ended = false; AP.triedMore = false;
     AP.msg = '🔍 유튜브에서 "' + song.title + '" 찾는 중…';
     renderAuto();
     let r;
@@ -545,16 +544,36 @@
     renderAuto();
   }
 
-  function onPlayerError(code) {
-    if (!AP.on || !AP.songId || PLAYER_ERRORS.indexOf(code) === -1) return;
-    if (AP.vi + 1 < AP.videos.length) {      // 퍼가기 금지 등 → 다음 후보 영상
+  // 영상이 재생 안 됨 (외부 사이트 재생 금지, 삭제된 영상 등) → 다음 후보 → 그래도 없으면 한 번 더 검색
+  async function onPlayerError(code) {
+    if (!AP.on || !AP.songId || AP.busy) return;
+    if (AP.vi + 1 < AP.videos.length) {
       AP.vi++;
       AP.player.loadVideoById(AP.videos[AP.vi].id);
       renderAuto();
-    } else {
-      P.toast('"' + AP.songTitle + '"는 재생할 수 있는 영상이 없어서 건너뛰었어요.', 'err');
-      skipUnplayable();
+      return;
     }
+    const songId = AP.songId;
+    if (!AP.triedMore) {
+      AP.triedMore = true;
+      AP.busy = true;
+      AP.msg = '🔍 재생 가능한 영상을 더 찾는 중…';
+      renderAuto();
+      let r;
+      try { r = await admin({ action: 'findVideo', id: songId, more: true }); } catch (e) { r = { ok: false }; }
+      AP.busy = false;
+      AP.msg = '';
+      if (!AP.on || AP.songId !== songId) return;
+      if (r.ok && r.added > 0) {
+        AP.videos = r.videos;
+        AP.vi = r.videos.length - r.added;
+        AP.player.loadVideoById(AP.videos[AP.vi].id);
+        renderAuto();
+        return;
+      }
+    }
+    P.toast('"' + AP.songTitle + '"는 유튜브가 다른 사이트 재생을 막아 둔 곡이라 건너뛰었어요. "삭제한 곡"에서 ▶ YouTube로 직접 틀 수 있어요.', 'err');
+    skipUnplayable();
   }
 
   async function skipUnplayable() {

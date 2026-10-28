@@ -239,9 +239,19 @@
     try { await refresh(); } catch (e) { $('submit').disabled = false; }
   });
 
+  // 첫 연결이 오래 걸리면 안내 (구글 서버가 잠들어 있으면 처음 몇 초 걸려요)
+  setTimeout(() => {
+    if (!state && $('loadTitle').textContent === '불러오는 중…') {
+      $('loadMsg').textContent = '서버가 깨어나는 중이에요. 처음엔 10초 정도 걸릴 수 있어요.';
+    }
+  }, 5000);
+
   let failCount = 0;
   const poller = P.poll(async () => {
-    try { await refresh(); failCount = 0; }
+    try {
+      await refresh();
+      failCount = 0;
+    }
     catch (e) {
       failCount++;
       if (!state) {                         // 아직 한 번도 못 불러왔으면 화면에 안내
