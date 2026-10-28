@@ -361,6 +361,7 @@
       $('nowMsg').replaceChildren(...(np.message ? [P.el('div', 'msg', np.message)] : []));
       $('nowActions').replaceChildren(
         ytLink(np),
+        linkBtn(np, false),
         actBtn('✓ 완료', 'ghost', () => setStatus(np, 'played')),
         actBtn('↩ 대기로', 'ghost', () => setStatus(np, 'waiting'))
       );
@@ -372,6 +373,7 @@
     $('queueCount').textContent = state.queue.length + '곡';
     fillList($('queue'), state.queue, (it) => [
       ytLink(it),
+      linkBtn(it, false),
       actBtn('▶ 틀기', 'play', () => setStatus(it, 'playing')),
       actBtn('✓', 'ghost', () => setStatus(it, 'played'), '완료 처리'),
       actBtn('✕', 'ghost', () => setStatus(it, 'removed'), '삭제')
@@ -381,7 +383,7 @@
     fillList($('played'), state.played, (it) => [ytLink(it), actBtn('↩ 대기로', 'ghost', () => setStatus(it, 'waiting'))], '아직 틀어 준 곡이 없어요.');
 
     $('removedCount').textContent = state.removed.length + '곡';
-    fillList($('removed'), state.removed, (it) => [ytLink(it), actBtn('↩ 복구', 'ghost', () => setStatus(it, 'waiting'))], '삭제한 곡이 없어요.');
+    fillList($('removed'), state.removed, (it) => [ytLink(it), linkBtn(it, true), actBtn('↩ 복구', 'ghost', () => setStatus(it, 'waiting'))], '삭제한 곡이 없어요.');
     renderAuto();
     sync();
   }
@@ -421,6 +423,48 @@
     a.href = 'https://www.youtube.com/results?search_query=' + encodeURIComponent((it.title + ' ' + (it.artist || '')).trim());
     a.target = '_blank'; a.rel = 'noopener';
     return a;
+  }
+
+  // ---------- 유튜브 링크 직접 넣기 ----------
+  function linkBtn(it, restore) {
+    return actBtn('🔗 링크', 'ghost', () => setLink(it, restore), '유튜브 링크 직접 넣기');
+  }
+
+  function parseYouTubeId(text) {
+    const s = String(text || '').trim();
+    const ok = id => (/^[A-Za-z0-9_-]{11}$/.test(id || '') ? id : null);
+    if (ok(s)) return s;
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s); } catch (e) { return null; }
+    const host = u.hostname.toLowerCase().replace(/^(www|m|music)\./, '');
+    if (host === 'youtu.be') return ok(u.pathname.split('/')[1]);
+    if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      if (u.searchParams.get('v')) return ok(u.searchParams.get('v'));
+      const m = u.pathname.match(/^\/(shorts|embed|live|v)\/([A-Za-z0-9_-]{11})/);
+      if (m) return m[2];
+    }
+    return null;
+  }
+
+  async function setLink(it, restore) {
+    if (busyIds.has(it.id)) return;
+    const text = prompt('"' + it.title + '"에 쓸 유튜브 영상 링크를 붙여넣으세요.\n(유튜브 영상 → 공유 → 복사한 주소)');
+    if (text == null || !text.trim()) return;
+    const vid = parseYouTubeId(text);
+    if (!vid) { P.toast('유튜브 영상 링크를 못 알아봤어요. 영상 주소를 그대로 복사해 주세요.', 'err'); return; }
+    busyIds.add(it.id);
+    render();
+    let r;
+    try { r = await admin({ action: 'setVideo', id: it.id, videoId: vid }); }
+    catch (e) { r = { ok: false, message: '연결이 불안정해요. 다시 시도해 주세요.' }; }
+    busyIds.delete(it.id);
+    if (!r.ok) { P.toast(r.message, 'err'); render(); return; }
+    if (AP.on && AP.ready && AP.songId === it.id) {   // 지금 재생 중인 곡이면 바로 바꿔 틀기
+      AP.videos = r.videos; AP.vi = 0; AP.triedMore = false; AP.msg = '';
+      AP.player.loadVideoById(vid);
+    }
+    if (restore) await setStatus(it, 'waiting'); else await refresh().catch(() => {});
+    P.toast('링크를 넣었어요. "' + it.title + '"는 이 영상으로 틀어요.' + (restore ? ' (대기 목록으로 복구했어요)' : ''), 'ok');
   }
 
   function clock(ms) {
@@ -534,7 +578,7 @@
     if (!r.ok) {
       AP.msg = '⚠️ ' + r.message;
       renderAuto();
-      P.toast(r.code === 'no_video' ? '"' + song.title + '"는 유튜브에서 못 찾아서 건너뛰었어요.' : r.message, 'err');
+      P.toast(r.code === 'no_video' ? '"' + song.title + '"는 유튜브 검색에 안 나와서 건너뛰었어요. "삭제한 곡"에서 🔗 링크로 영상을 넣어 주세요.' : r.message, 'err');
       if (r.code === 'no_video') await skipUnplayable();
       else if (r.code === 'network') { AP.songId = null; }   // 다음 새로고침 때 다시 시도
       return;
@@ -572,7 +616,7 @@
         return;
       }
     }
-    P.toast('"' + AP.songTitle + '"는 유튜브가 다른 사이트 재생을 막아 둔 곡이라 건너뛰었어요. "삭제한 곡"에서 ▶ YouTube로 직접 틀 수 있어요.', 'err');
+    P.toast('"' + AP.songTitle + '"는 유튜브가 다른 사이트 재생을 막아 둔 곡이라 건너뛰었어요. "삭제한 곡"에서 🔗 링크로 다른 영상을 넣어 주세요.', 'err');
     skipUnplayable();
   }
 
