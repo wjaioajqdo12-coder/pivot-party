@@ -1,6 +1,6 @@
 // ★ Apps Script를 "웹 앱"으로 배포한 뒤 받은 주소를 따옴표 안에 붙여넣으세요.
 //   예) 'https://script.google.com/macros/s/AKfy..../exec'
 window.PIVOT_CONFIG = {
-   API_URL: 'https://script.google.com/macros/s/AKfy....../exec',
+   API_URL: 'https://script.google.com/macros/s/AKfycbzpjA2MC_Gq1K-M6ngAqB-_Q5YCgzApbZsI9XkLtiWU_eoaePHmos309uhJRMOPVSbT-A/exec',
   PARTY_NAME: 'PIVOT PARTY'
 };
