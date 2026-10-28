@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d10">
+<title>PIVOT PARTY · 신청곡</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap">
+  <div class="brand"><span class="dot"></span><span class="name" id="partyName">PIVOT PARTY</span></div>
+  <h1 class="title">듣고 싶은 노래,<br><em>신청하세요.</em></h1>
+  <p class="sub">신청한 곡은 DJ가 순서대로 틀어 드려요.</p>
+
+  <div id="setup" class="card setup" hidden>
+    <h2>⚙️ 아직 설정이 안 됐어요</h2>
+    <p style="margin:0">config.js 파일의 <code>API_URL</code>에 Apps Script 웹 앱 주소를 넣어 주세요.</p>
+  </div>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="now" class="card now" hidden aria-live="polite">
+    <div class="label"><span class="eq"><i></i><i></i><i></i></span>NOW PLAYING</div>
+    <div class="song" id="nowTitle"></div>
+    <div class="artist" id="nowArtist"></div>
+  </section>
+
+  <section id="formCard" class="card" hidden>
+    <h2>🎵 신청곡 보내기 <span class="count" id="myCount"></span></h2>
+    <form id="form" autocomplete="off" novalidate>
+      <div class="row2">
+        <div class="field">
+          <label for="title">곡 제목</label>
+          <input class="input" id="title" name="title" maxlength="80" placeholder="예) Hype Boy" required>
+        </div>
+        <div class="field">
+          <label for="artist">가수 <span class="opt">(선택)</span></label>
+          <input class="input" id="artist" name="artist" maxlength="60" placeholder="예) NewJeans">
+        </div>
+      </div>
+      <div class="field" id="nameField">
+        <label for="name">이름 <span class="opt" id="nameOpt">(선택)</span></label>
+        <input class="input" id="name" name="name" maxlength="20" placeholder="DJ에게 보일 이름">
+      </div>
+      <div class="field" id="msgField">
+        <label for="message">DJ에게 한마디 <span class="opt">(선택)</span></label>
+        <textarea class="input" id="message" name="message" maxlength="100" placeholder="예) 이 노래 나오면 다 같이 떼창!"></textarea>
+      </div>
+      <button class="btn primary" id="submit" type="submit">신청하기</button>
+      <p class="hint" id="formHint"></p>
+    </form>
+  </section>
+
+  <section id="closedCard" class="card closed" hidden>
+    <div class="big">🌙</div>
+    <strong>지금은 신청을 받지 않아요</strong>
+    <p>DJ가 다시 열면 이 화면에서 바로 신청할 수 있어요.</p>
+  </section>
+
+  <section id="queueCard" class="card" hidden>
+    <h2>📋 신청 목록 <span class="count" id="queueCount"></span></h2>
+    <p class="hint" id="likeHint" style="text-align:left;margin:-6px 0 8px" hidden>♥ 좋아요가 많은 곡이 먼저 나와요</p>
+    <ul class="list" id="queue"></ul>
+  </section>
+
+  <p class="foot">PIVOT PARTY · SONG REQUEST</p>
+</main>
+
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const P = window.Pivot;
+  const $ = id => document.getElementById(id);
+  const device = P.deviceId();
+  let state = null;
+  let busy = false;
+  const pendingLikes = new Set();
+
+  $('partyName').textContent = P.cfg.PARTY_NAME || 'PIVOT PARTY';
+  if (!P.configured) { $('setup').hidden = false; return; }
+
+  // 이름은 다음 신청 때 다시 안 쓰도록 기억
+  $('name').value = P.store('pivot_name') || '';
+
+  async function refresh() {
+    const data = await P.get({ action: 'state', device });
+    if (!data.ok) throw new Error(data.message);
+    state = data;
+    render();
+  }
+
+  function render() {
+    const s = state.settings;
+
+    $('notice').hidden = !s.notice;
+    $('notice').textContent = s.notice || '';
+
+    const np = state.nowPlaying;
+    $('now').hidden = !np;
+    if (np) {
+      $('nowTitle').textContent = np.title;
+      $('nowArtist').textContent = np.artist || '';
+    }
+
+    // 폼
+    $('formCard').hidden = !s.open;
+    $('closedCard').hidden = s.open;
+    $('nameField').hidden = !s.askName;
+    $('nameOpt').textContent = s.requireName ? '(필수)' : '(선택)';
+    $('msgField').hidden = !s.allowMessage;
+
+    const limitReached = s.limitPerPerson && state.my.count >= s.maxPerPerson;
+    $('myCount').textContent = s.limitPerPerson ? '내 신청 ' + Math.min(state.my.count, s.maxPerPerson) + ' / ' + s.maxPerPerson : '';
+    updateCooldown();
+    if (limitReached) {
+      $('submit').disabled = true;
+      $('formHint').textContent = '신청 가능한 곡을 모두 신청했어요. 고마워요!';
+    }
+
+    // 목록
+    $('queueCard').hidden = !s.showQueue;
+    $('likeHint').hidden = !(s.likes && state.queue.length > 1);
+    $('queueCount').textContent = s.showQueue ? state.queue.length + '곡 대기 중' : '';
+    const ul = $('queue');
+    ul.replaceChildren();
+    if (s.showQueue && !state.queue.length) {
+      ul.appendChild(P.el('li', 'empty', np ? '대기 중인 곡이 없어요. 첫 신청의 주인공이 되어 보세요!' : '아직 신청곡이 없어요. 첫 곡을 신청해 보세요!'));
+    }
+    state.queue.forEach((it, i) => {
+      const li = P.el('li', 'item');
+      li.appendChild(P.el('span', 'rank', String(i + 1)));
+      const meta = P.el('div', 'meta');
+      const t = P.el('div', 't', it.title);
+      if (it.mine) t.appendChild(P.el('span', 'tag', '내 신청'));
+      meta.appendChild(t);
+      if (it.artist) meta.appendChild(P.el('div', 'a', it.artist));
+      if (it.name) meta.appendChild(P.el('div', 'who', 'from ' + it.name));
+      li.appendChild(meta);
+      if (s.likes) {
+        const b = P.el('button', 'like' + (it.likedByMe ? ' on' : ''));
+        b.type = 'button';
+        b.setAttribute('aria-pressed', it.likedByMe ? 'true' : 'false');
+        b.setAttribute('aria-label', it.title + ' 좋아요 ' + it.likes + '개');
+        b.disabled = it.mine || pendingLikes.has(it.id);
+        if (it.mine) b.title = '내가 신청한 곡이에요';
+        b.appendChild(P.el('span', 'h', '♥'));
+        b.appendChild(P.el('span', 'n', String(it.likes)));
+        b.addEventListener('click', () => like(it, b));
+        li.appendChild(b);
+      }
+      ul.appendChild(li);
+    });
+  }
+
+  // 연속 신청 간격 카운트다운
+  let cdTimer = null, cdUntil = 0;
+  function updateCooldown() {
+    const s = state.settings;
+    const limitReached = s.limitPerPerson && state.my.count >= s.maxPerPerson;
+    if (s.cooldown && state.my.waitSec > 0) cdUntil = Math.max(cdUntil, Date.now() + state.my.waitSec * 1000);
+    if (!s.cooldown) cdUntil = 0;
+    clearInterval(cdTimer);
+    const step = () => {
+      const left = Math.ceil((cdUntil - Date.now()) / 1000);
+      if (left > 0 && !limitReached) {
+        $('submit').disabled = true;
+        $('formHint').textContent = left + '초 뒤에 또 신청할 수 있어요.';
+      } else {
+        clearInterval(cdTimer);
+        if (!limitReached) {
+          $('submit').disabled = busy;
+          $('formHint').textContent = s.limitPerPerson ? '한 사람당 ' + s.maxPerPerson + '곡까지 신청할 수 있어요.' : '';
+        }
+      }
+    };
+    step();
+    cdTimer = setInterval(step, 1000);
+  }
+
+  async function like(it, btn) {
+    if (pendingLikes.has(it.id)) return;
+    pendingLikes.add(it.id);
+    // 먼저 화면에 반영하고 서버 응답으로 맞춤
+    const was = it.likedByMe;
+    it.likedByMe = !was; it.likes += was ? -1 : 1;
+    btn.classList.toggle('on', it.likedByMe);
+    btn.querySelector('.n').textContent = it.likes;
+    btn.disabled = true;
+    try {
+      const r = await P.post({ action: 'like', id: it.id, deviceId: device });
+      if (!r.ok) P.toast(r.message, 'err');
+    } catch (e) {
+      P.toast('연결이 불안정해요. 잠시 뒤 다시 눌러 주세요.', 'err');
+    }
+    pendingLikes.delete(it.id);
+    refresh().catch(() => {});
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy || !state) return;
+    const s = state.settings;
+    const title = $('title').value.trim();
+    const name = $('name').value.trim();
+    if (!title) { P.toast('곡 제목을 입력해 주세요.', 'err'); $('title').focus(); return; }
+    if (s.askName && s.requireName && !name) { P.toast('이름을 입력해 주세요.', 'err'); $('name').focus(); return; }
+
+    busy = true;
+    $('submit').disabled = true;
+    $('submit').textContent = '보내는 중…';
+    try {
+      const r = await P.post({
+        action: 'request', deviceId: device, title,
+        artist: $('artist').value.trim(), name, message: $('message').value.trim()
+      });
+      if (r.ok) {
+        P.toast(r.message || '신청 완료!', 'ok');
+        $('title').value = ''; $('artist').value = ''; $('message').value = '';
+        if (name) P.store('pivot_name', name);
+      } else {
+        P.toast(r.message || '신청하지 못했어요.', 'err');
+        if (r.code === 'duplicate') { $('title').value = ''; $('artist').value = ''; }
+      }
+    } catch (err) {
+      P.toast('연결이 불안정해요. 잠시 뒤 다시 시도해 주세요.', 'err');
+    }
+    busy = false;
+    $('submit').textContent = '신청하기';
+    try { await refresh(); } catch (e) { $('submit').disabled = false; }
+  });
+
+  let failCount = 0;
+  P.poll(async () => {
+    try { await refresh(); failCount = 0; }
+    catch (e) { if (++failCount === 2) P.toast('서버에 연결하는 중이에요…', 'err'); throw e; }
+  }, 12000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d10">
+<meta name="robots" content="noindex">
+<title>PIVOT PARTY · DJ</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .top h1 { margin: 4px 0 0; font-size: 30px; font-weight: 900; letter-spacing: -.02em; }
+  .top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .stat .v { font-size: 24px; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .open-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .open-banner .state { font-weight: 800; font-size: 17px; }
+  .open-banner .state small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
+
+  .now .actions, .item .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .now .actions { margin-top: 12px; }
+  .item { align-items: flex-start; }
+  .item .actions { flex: none; justify-content: flex-end; max-width: 52%; }
+  .msg { margin-top: 6px; font-size: 13px; color: #e7e7ee; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px; word-break: break-word; }
+  .msg::before { content: '💬 '; }
+  .likes-badge { color: var(--pink); font-weight: 800; font-size: 13px; margin-left: 6px; }
+  .time { font-family: var(--mono); font-size: 11px; color: #6d6d82; }
+  .btn.play { background: var(--accent); color: var(--accent-ink); }
+  .btn.yt { background: rgba(255,90,90,.12); color: #ffb3b3; border: 1px solid rgba(255,90,90,.3); text-decoration: none; }
+  .next { width: 100%; margin-bottom: 16px; font-size: 17px; padding: 16px; }
+
+  /* 자동 재생 */
+  #autoCard.on { border-color: rgba(255,90,90,.45); }
+  .player-wrap { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; margin-top: 14px; }
+  .player-wrap > * { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .vid-info { margin-top: 10px; font-size: 13px; color: var(--muted); word-break: break-word; min-height: 20px; }
+  .vid-info b { color: var(--text); }
+  .ap-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+  /* 스위치 */
+  .opt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .opt-row:first-of-type { border-top: 0; }
+  .opt-row.sub { padding-left: 14px; }
+  .opt-row.sub .opt-name::before { content: '└ '; color: #5d5d70; }
+  .opt-row.dim { opacity: .45; }
+  .opt-name { font-weight: 700; font-size: 14px; }
+  .opt-desc { font-size: 12px; color: var(--muted); }
+  .switch { position: relative; width: 50px; height: 30px; flex: none; }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+  .switch .track { position: absolute; inset: 0; background: #34343f; border-radius: 99px; transition: background .18s; }
+  .switch .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .18s; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(20px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { width: 76px; text-align: center; padding: 8px; font-size: 15px; }
+  .notice-box { display: flex; gap: 8px; margin-top: 8px; }
+  .notice-box .input { font-size: 14px; padding: 10px 12px; }
+
+  details.card summary { cursor: pointer; font-weight: 800; font-size: 15px; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.card summary .count { font-family: var(--mono); font-size: 12px; color: var(--muted); font-weight: 500; }
+  details.card summary::-webkit-details-marker { display: none; }
+  details.card summary::after { content: '＋'; color: var(--muted); margin-left: auto; }
+  details.card[open] summary::after { content: '－'; }
+  details.card[open] summary { margin-bottom: 10px; }
+
+  .login { max-width: 380px; margin: 12vh auto 0; }
+  .saving { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: auto; }
+</style>
+</head>
+<body>
+<main class="wrap wide">
+
+  <div id="setup" class="card setup" hidden>
+    <h2>⚙️ 아직 설정이 안 됐어요</h2>
+    <p style="margin:0">config.js 파일의 <code>API_URL</code>에 Apps Script 웹 앱 주소를 넣어 주세요.</p>
+  </div>
+
+  <!-- 로그인 -->
+  <section id="loginView" class="login" hidden>
+    <div class="brand"><span class="dot"></span><span class="name">PIVOT PARTY · DJ</span></div>
+    <h1 class="title" style="font-size:40px">DJ <em>부스</em></h1>
+    <form id="loginForm" class="card">
+      <div class="field">
+        <label for="pw">비밀번호</label>
+        <input class="input" id="pw" type="password" autocomplete="current-password" placeholder="Code.gs에 적은 DJ_PASSWORD">
+      </div>
+      <button class="btn primary" type="submit" id="loginBtn">입장하기</button>
+    </form>
+  </section>
+
+  <!-- DJ 화면 -->
+  <section id="djView" hidden>
+    <div class="top">
+      <div>
+        <div class="brand"><span class="dot"></span><span class="name">PIVOT PARTY · DJ</span></div>
+        <h1>DJ 부스</h1>
+      </div>
+      <div class="top-actions">
+        <a class="btn ghost small" href="index.html" target="_blank" rel="noopener">손님 화면 ↗</a>
+        <a class="btn ghost small" href="poster.html" target="_blank" rel="noopener">QR 포스터 ↗</a>
+        <button class="btn ghost small" id="logout" type="button">로그아웃</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v" id="sWait">0</div><div class="k">대기 중</div></div>
+      <div class="stat"><div class="v" id="sPlayed">0</div><div class="k">틀어 준 곡</div></div>
+      <div class="stat"><div class="v" id="sTotal">0</div><div class="k">전체 신청</div></div>
+      <div class="stat"><div class="v" id="sPeople">0</div><div class="k">신청한 사람(기기)</div></div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <section class="card" id="autoCard">
+          <div class="open-banner">
+            <div class="state" id="autoLabel">🎧 자동 재생 꺼짐<small>켜면 유튜브에서 신청곡을 찾아 순서대로 틀어요</small></div>
+            <label class="switch" title="자동 재생"><input type="checkbox" id="autoSwitch" aria-label="자동 재생"><span class="track"></span></label>
+          </div>
+          <div id="autoBody" hidden>
+            <div class="player-wrap"><div id="ytPlayer"></div></div>
+            <div class="vid-info" id="vidInfo"></div>
+            <div class="ap-actions">
+              <button class="btn small ghost" id="apPlay" type="button">⏸ 일시정지</button>
+              <button class="btn small ghost" id="apSkip" type="button">⏭ 건너뛰기</button>
+              <button class="btn small ghost" id="apAlt" type="button" title="엉뚱한 영상이 나오면 눌러 주세요">🔄 다른 영상</button>
+            </div>
+            <p class="opt-desc" style="margin:10px 0 0">스피커에 연결된 이 기기에서만 켜 두세요. 다른 기기에서도 켜면 소리가 겹쳐요. 유튜브 광고는 중간에 나올 수 있어요.</p>
+          </div>
+        </section>
+
+        <section id="now" class="card now" hidden>
+          <div class="label"><span class="eq"><i></i><i></i><i></i></span>NOW PLAYING</div>
+          <div class="song" id="nowTitle"></div>
+          <div class="artist" id="nowArtist"></div>
+          <div id="nowMsg"></div>
+          <div class="actions" id="nowActions"></div>
+        </section>
+
+        <button class="btn primary next" id="nextBtn" type="button">⏭ 다음 곡 틀기</button>
+
+        <section class="card">
+          <h2>📋 대기 목록 <span class="count" id="queueCount"></span></h2>
+          <ul class="list" id="queue"></ul>
+        </section>
+
+        <details class="card" id="playedBox">
+          <summary>✅ 틀어 준 곡 <span class="count" id="playedCount"></span></summary>
+          <ul class="list" id="played"></ul>
+        </details>
+
+        <details class="card" id="removedBox">
+          <summary>🗑 삭제한 곡 <span class="count" id="removedCount"></span></summary>
+          <ul class="list" id="removed"></ul>
+        </details>
+      </div>
+
+      <aside class="side">
+        <section class="card">
+          <div class="open-banner">
+            <div class="state" id="openLabel">신청 받는 중<small>손님이 지금 신청할 수 있어요</small></div>
+            <label class="switch" title="신청 받기"><input type="checkbox" data-key="open" aria-label="신청 받기"><span class="track"></span></label>
+          </div>
+        </section>
+
+        <section class="card" id="settingsCard">
+          <h2>🎛 기능 켜고 끄기 <span class="saving" id="saving"></span></h2>
+          <div id="opts"></div>
+          <div style="margin-top:12px">
+            <div class="opt-name">📢 공지 문구</div>
+            <div class="opt-desc">손님 화면 맨 위에 보여요. 비우면 숨겨져요.</div>
+            <div class="notice-box">
+              <input class="input" id="notice" maxlength="200" placeholder="예) 새벽 1시까지 신청 받아요!">
+              <button class="btn ghost small" id="noticeSave" type="button">저장</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>⚠️ 초기화</h2>
+          <p class="opt-desc" style="margin:0 0 10px">신청곡을 전부 지워요. 설정은 그대로 남아요. 리허설 끝나고 본 파티 전에 쓰면 좋아요.</p>
+          <button class="btn danger small" id="clearBtn" type="button">신청곡 전부 지우기</button>
+        </section>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="common.js"></script>
+<script>
+(function () {
+  const P = window.Pivot;
+  const $ = id => document.getElementById(id);
+  if (!P.configured) { $('setup').hidden = false; return; }
+
+  // 켜고 끄는 기능 목록 (key는 Code.gs의 DEFAULT_SETTINGS와 같아요)
+  const OPTIONS = [
+    { key: 'limitPerPerson', name: '1인 신청 곡 수 제한', desc: '한 사람(기기)당 신청할 수 있는 곡 수를 정해요' },
+    { key: 'maxPerPerson', name: '최대 곡 수', type: 'num', min: 1, max: 20, parent: 'limitPerPerson', unit: '곡' },
+    { key: 'blockDuplicates', name: '중복 신청 막기', desc: '같은 곡이 또 들어오면 막고, 대신 좋아요를 눌러 줘요' },
+    { key: 'likes', name: '좋아요 버튼', desc: '손님이 듣고 싶은 곡에 ♥를 누를 수 있어요' },
+    { key: 'sortByLikes', name: '좋아요 많은 순 정렬', desc: '끄면 신청한 순서대로 정렬돼요', parent: 'likes' },
+    { key: 'showQueue', name: '손님에게 목록 공개', desc: '끄면 손님은 신청만 하고 목록은 못 봐요' },
+    { key: 'askName', name: '이름 칸 보이기', desc: '신청자 이름을 받아요' },
+    { key: 'requireName', name: '이름 필수', parent: 'askName' },
+    { key: 'allowMessage', name: 'DJ에게 한마디 칸', desc: '메시지는 DJ 화면에서만 보여요' },
+    { key: 'cooldown', name: '연속 신청 간격 제한', desc: '한 곡 신청 후 잠깐 기다려야 다음 곡을 신청할 수 있어요' },
+    { key: 'cooldownSec', name: '간격', type: 'num', min: 5, max: 3600, parent: 'cooldown', unit: '초' }
+  ];
+
+  let pw = P.store('pivot_dj_pw') || '';
+  let state = null;
+  let settings = null;
+  let pendingSave = 0;
+  let poller = null;
+  const busyIds = new Set();
+
+  // ---------- 로그인 ----------
+  async function login(password) {
+    const r = await P.post({ action: 'login', password });
+    return r.ok;
+  }
+
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = $('pw').value;
+    if (!v) return;
+    $('loginBtn').disabled = true; $('loginBtn').textContent = '확인 중…';
+    try {
+      if (await login(v)) { pw = v; P.store('pivot_dj_pw', v); showDJ(); }
+      else P.toast('비밀번호가 맞지 않아요.', 'err');
+    } catch (err) { P.toast('서버에 연결하지 못했어요. 주소 설정을 확인해 주세요.', 'err'); }
+    $('loginBtn').disabled = false; $('loginBtn').textContent = '입장하기';
+  });
+
+  $('logout').addEventListener('click', () => { P.store('pivot_dj_pw', null); location.reload(); });
+
+  function showLogin() { $('djView').hidden = true; $('loginView').hidden = false; $('pw').focus(); }
+  function showDJ() {
+    $('loginView').hidden = true; $('djView').hidden = false;
+    buildOptions();
+    if (!poller) poller = P.poll(refresh, 5000); else poller.now();
+  }
+
+  // ---------- 서버 호출 ----------
+  async function admin(body) {
+    const r = await P.post(Object.assign({ password: pw }, body));
+    if (!r.ok && r.code === 'auth') { P.store('pivot_dj_pw', null); showLogin(); }
+    return r;
+  }
+
+  async function refresh() {
+    const r = await admin({ action: 'adminState' });
+    if (!r.ok) { if (r.code !== 'auth') P.toast(r.message, 'err'); return; }
+    state = r;
+    if (!pendingSave) settings = r.settings;
+    render();
+  }
+
+  // ---------- 설정 스위치 ----------
+  function buildOptions() {
+    const box = $('opts');
+    if (box.childElementCount) return;
+    OPTIONS.forEach(o => {
+      const row = P.el('div', 'opt-row' + (o.parent ? ' sub' : ''));
+      row.dataset.row = o.key;
+      const txt = P.el('div');
+      txt.appendChild(P.el('div', 'opt-name', o.name));
+      if (o.desc) txt.appendChild(P.el('div', 'opt-desc', o.desc));
+      row.appendChild(txt);
+      if (o.type === 'num') {
+        const wrap = P.el('div');
+        wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex:none';
+        const inp = P.el('input', 'input num');
+        inp.type = 'number'; inp.min = o.min; inp.max = o.max; inp.inputMode = 'numeric';
+        inp.dataset.key = o.key;
+        inp.setAttribute('aria-label', o.name);
+        inp.addEventListener('change', () => {
+          let v = Math.round(Number(inp.value));
+          if (!isFinite(v)) v = o.min;
+          v = Math.min(o.max, Math.max(o.min, v));
+          inp.value = v;
+          save({ [o.key]: v });
+        });
+        wrap.appendChild(inp);
+        wrap.appendChild(P.el('span', 'opt-desc', o.unit));
+        row.appendChild(wrap);
+      } else {
+        const sw = P.el('label', 'switch');
+        const inp = P.el('input');
+        inp.type = 'checkbox'; inp.dataset.key = o.key;
+        inp.setAttribute('aria-label', o.name);
+        sw.appendChild(inp); sw.appendChild(P.el('span', 'track'));
+        row.appendChild(sw);
+      }
+      box.appendChild(row);
+    });
+    document.querySelectorAll('.switch input[data-key]').forEach(inp => {
+      inp.addEventListener('change', () => save({ [inp.dataset.key]: inp.checked }));
+    });
+    $('noticeSave').addEventListener('click', () => save({ notice: $('notice').value.trim() }, '공지를 저장했어요.'));
+    $('notice').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('noticeSave').click(); } });
+  }
+
+  async function save(patch, okMsg) {
+    if (!settings) return;
+    settings = Object.assign({}, settings, patch);
+    renderSettings();
+    pendingSave++;
+    $('saving').textContent = '저장 중…';
+    try {
+      const r = await admin({ action: 'saveSettings', settings: patch });
+      if (r.ok) { if (pendingSave === 1) settings = r.settings; if (okMsg) P.toast(okMsg, 'ok'); }
+      else P.toast(r.message || '저장하지 못했어요.', 'err');
+    } catch (e) { P.toast('저장하지 못했어요. 연결을 확인해 주세요.', 'err'); }
+    pendingSave--;
+    $('saving').textContent = pendingSave ? '저장 중…' : '';
+    if (!pendingSave) { renderSettings(); poller && poller.now(); }
+  }
+
+  function renderSettings() {
+    if (!settings) return;
+    document.querySelectorAll('[data-key]').forEach(inp => {
+      const k = inp.dataset.key;
+      if (inp.type === 'checkbox') inp.checked = !!settings[k];
+      else if (document.activeElement !== inp) inp.value = settings[k];
+    });
+    OPTIONS.forEach(o => {
+      const row = document.querySelector('[data-row="' + o.key + '"]');
+      if (row) row.classList.toggle('dim', !!o.parent && !settings[o.parent]);
+    });
+    if (document.activeElement !== $('notice')) $('notice').value = settings.notice || '';
+    const open = settings.open;
+    $('openLabel').replaceChildren(
+      document.createTextNode(open ? '🟢 신청 받는 중' : '🔴 신청 마감'),
+      P.el('small', '', open ? '손님이 지금 신청할 수 있어요' : '손님 화면에 "신청 마감"으로 보여요')
+    );
+  }
+
+  // ---------- 목록 ----------
+  function render() {
+    renderSettings();
+    $('sWait').textContent = state.queue.length;
+    $('sPlayed').textContent = state.played.length;
+    $('sTotal').textContent = state.total;
+    $('sPeople').textContent = state.people;
+
+    const np = state.nowPlaying;
+    $('now').hidden = !np;
+    if (np) {
+      $('nowTitle').textContent = np.title;
+      $('nowArtist').textContent = [np.artist, np.name && 'from ' + np.name].filter(Boolean).join(' · ');
+      $('nowMsg').replaceChildren(...(np.message ? [P.el('div', 'msg', np.message)] : []));
+      $('nowActions').replaceChildren(
+        ytLink(np),
+        actBtn('✓ 완료', 'ghost', () => setStatus(np, 'played')),
+        actBtn('↩ 대기로', 'ghost', () => setStatus(np, 'waiting'))
+      );
+    }
+
+    $('nextBtn').disabled = !state.queue.length && !np;
+    $('nextBtn').textContent = state.queue.length ? '⏭ 다음 곡 틀기: ' + state.queue[0].title : (np ? '✓ 지금 곡 완료' : '대기 중인 곡이 없어요');
+
+    $('queueCount').textContent = state.queue.length + '곡';
+    fillList($('queue'), state.queue, (it) => [
+      ytLink(it),
+      actBtn('▶ 틀기', 'play', () => setStatus(it, 'playing')),
+      actBtn('✓', 'ghost', () => setStatus(it, 'played'), '완료 처리'),
+      actBtn('✕', 'ghost', () => setStatus(it, 'removed'), '삭제')
+    ], '대기 중인 신청곡이 없어요.', true);
+
+    $('playedCount').textContent = state.played.length + '곡';
+    fillList($('played'), state.played, (it) => [actBtn('↩ 대기로', 'ghost', () => setStatus(it, 'waiting'))], '아직 틀어 준 곡이 없어요.');
+
+    $('removedCount').textContent = state.removed.length + '곡';
+    fillList($('removed'), state.removed, (it) => [actBtn('↩ 복구', 'ghost', () => setStatus(it, 'waiting'))], '삭제한 곡이 없어요.');
+    renderAuto();
+    sync();
+  }
+
+  function fillList(ul, items, actions, emptyText, ranked) {
+    ul.replaceChildren();
+    if (!items.length) { ul.appendChild(P.el('li', 'empty', emptyText)); return; }
+    items.forEach((it, i) => {
+      const li = P.el('li', 'item');
+      if (ranked) li.appendChild(P.el('span', 'rank', String(i + 1)));
+      const meta = P.el('div', 'meta');
+      const t = P.el('div', 't', it.title);
+      if (state.settings.likes && it.likes) t.appendChild(P.el('span', 'likes-badge', '♥ ' + it.likes));
+      meta.appendChild(t);
+      const sub = [it.artist, it.name && 'from ' + it.name].filter(Boolean).join(' · ');
+      if (sub) meta.appendChild(P.el('div', 'a', sub));
+      meta.appendChild(P.el('div', 'time', clock(it.time)));
+      if (it.message) meta.appendChild(P.el('div', 'msg', it.message));
+      li.appendChild(meta);
+      const act = P.el('div', 'actions');
+      actions(it).forEach(b => { if (busyIds.has(it.id) && b.tagName === 'BUTTON') b.disabled = true; act.appendChild(b); });
+      li.appendChild(act);
+      ul.appendChild(li);
+    });
+  }
+
+  function actBtn(label, kind, fn, aria) {
+    const b = P.el('button', 'btn small ' + kind, label);
+    b.type = 'button';
+    if (aria) { b.setAttribute('aria-label', aria); b.title = aria; }
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  function ytLink(it) {
+    const a = P.el('a', 'btn small yt', '▶ YouTube');
+    a.href = 'https://www.youtube.com/results?search_query=' + encodeURIComponent((it.title + ' ' + (it.artist || '')).trim());
+    a.target = '_blank'; a.rel = 'noopener';
+    return a;
+  }
+
+  function clock(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  async function setStatus(it, status) {
+    if (busyIds.has(it.id)) return;
+    busyIds.add(it.id);
+    render();
+    let ok = false;
+    try {
+      const r = await admin({ action: 'setStatus', id: it.id, status });
+      ok = r.ok;
+      if (!r.ok) P.toast(r.message, 'err');
+    } catch (e) { P.toast('처리하지 못했어요. 다시 눌러 주세요.', 'err'); }
+    busyIds.delete(it.id);
+    await refresh().catch(() => {});
+    return ok;
+  }
+
+  // ---------- 자동 재생 (유튜브) ----------
+  const AP = { on: false, ready: false, player: null, api: null, songId: null, songTitle: '', videos: [], vi: 0, busy: false, advancing: false, ended: false, msg: '' };
+  const PLAYER_ERRORS = [2, 5, 100, 101, 150];
+
+  function loadYT() {
+    if (window.YT && window.YT.Player) return Promise.resolve();
+    if (AP.api) return AP.api;
+    AP.api = new Promise((resolve, reject) => {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+      const sc = document.createElement('script');
+      sc.src = 'https://www.youtube.com/iframe_api';
+      sc.onerror = () => { AP.api = null; reject(new Error('youtube')); };
+      document.head.appendChild(sc);
+    });
+    return AP.api;
+  }
+
+  async function ensurePlayer() {
+    await loadYT();
+    if (AP.player) return;
+    await new Promise(resolve => {
+      AP.player = new YT.Player('ytPlayer', {
+        width: '100%', height: '100%',
+        playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+        events: {
+          onReady: () => { AP.ready = true; resolve(); },
+          onStateChange: e => {
+            if (e.data === 1) AP.ended = false;
+            if (e.data === 0) { AP.ended = true; advance(); }
+            renderAuto();
+          },
+          onError: e => onPlayerError(e.data)
+        }
+      });
+    });
+  }
+
+  function decode(str) { const t = document.createElement('textarea'); t.innerHTML = str || ''; return t.value; }
+
+  function renderAuto() {
+    $('autoCard').classList.toggle('on', AP.on);
+    $('autoLabel').replaceChildren(
+      document.createTextNode(AP.on ? '🎧 자동 재생 중' : '🎧 자동 재생 꺼짐'),
+      P.el('small', '', AP.on ? '곡이 끝나면 다음 신청곡을 알아서 틀어요' : '켜면 유튜브에서 신청곡을 찾아 순서대로 틀어요')
+    );
+    const info = $('vidInfo');
+    const v = AP.videos[AP.vi];
+    if (AP.msg) info.textContent = AP.msg;
+    else if (AP.songId && v) {
+      info.replaceChildren(P.el('b', '', decode(v.title)), document.createTextNode(' · ' + decode(v.channel) + (AP.videos.length > 1 ? '  (영상 ' + (AP.vi + 1) + '/' + AP.videos.length + ')' : '')));
+    } else info.textContent = AP.on ? '신청곡을 기다리는 중이에요…' : '';
+    const st = AP.ready && AP.player.getPlayerState ? AP.player.getPlayerState() : -1;
+    $('apPlay').textContent = st === 1 || st === 3 ? '⏸ 일시정지' : '▶ 재생';
+    $('apPlay').disabled = !AP.songId || !AP.videos.length;
+    $('apAlt').disabled = AP.videos.length < 2;
+    $('apSkip').disabled = !AP.songId || AP.advancing;
+  }
+
+  // 서버 상태에 맞춰 플레이어를 움직임 (새로고침될 때마다 호출)
+  async function sync() {
+    if (!AP.on || !AP.ready || !state || AP.busy || AP.advancing) return;
+    const np = state.nowPlaying;
+    if (np) {
+      if (np.id !== AP.songId) await playSong(np);
+      else if (AP.ended) advance();          // 곡이 끝났는데 넘어가지 못했으면 다시 시도
+      return;
+    }
+    if (state.queue.length) {             // 재생 중인 곡이 없으면 1번 곡 시작
+      AP.busy = true;
+      const ok = await setStatus(state.queue[0], 'playing');
+      AP.busy = false;
+      if (ok) sync();                       // 실패하면 다음 새로고침 때 다시 시도
+      return;
+    }
+    if (AP.songId) { AP.player.stopVideo(); AP.songId = null; AP.videos = []; AP.msg = ''; renderAuto(); }
+  }
+
+  async function playSong(song) {
+    AP.busy = true;
+    AP.songId = song.id; AP.songTitle = song.title; AP.videos = []; AP.vi = 0; AP.ended = false;
+    AP.msg = '🔍 유튜브에서 "' + song.title + '" 찾는 중…';
+    renderAuto();
+    let r;
+    try { r = await admin({ action: 'findVideo', id: song.id }); }
+    catch (e) { r = { ok: false, code: 'network', message: '연결이 불안정해서 영상을 찾지 못했어요.' }; }
+    AP.busy = false;
+    if (!AP.on || AP.songId !== song.id) return;
+    if (!r.ok) {
+      AP.msg = '⚠️ ' + r.message;
+      renderAuto();
+      P.toast(r.code === 'no_video' ? '"' + song.title + '"는 유튜브에서 못 찾아서 건너뛰었어요.' : r.message, 'err');
+      if (r.code === 'no_video') await skipUnplayable();
+      else if (r.code === 'network') { AP.songId = null; }   // 다음 새로고침 때 다시 시도
+      return;
+    }
+    AP.videos = r.videos; AP.vi = 0; AP.msg = '';
+    AP.player.loadVideoById(AP.videos[0].id);
+    renderAuto();
+  }
+
+  function onPlayerError(code) {
+    if (!AP.on || !AP.songId || PLAYER_ERRORS.indexOf(code) === -1) return;
+    if (AP.vi + 1 < AP.videos.length) {      // 퍼가기 금지 등 → 다음 후보 영상
+      AP.vi++;
+      AP.player.loadVideoById(AP.videos[AP.vi].id);
+      renderAuto();
+    } else {
+      P.toast('"' + AP.songTitle + '"는 재생할 수 있는 영상이 없어서 건너뛰었어요.', 'err');
+      skipUnplayable();
+    }
+  }
+
+  async function skipUnplayable() {
+    if (AP.advancing || !AP.songId) return;
+    AP.advancing = true;
+    await setStatus({ id: AP.songId }, 'removed');   // 삭제한 곡에서 복구할 수 있어요
+    AP.songId = null; AP.videos = []; AP.msg = '';
+    AP.advancing = false;
+    sync();
+  }
+
+  // 곡이 끝났거나 건너뛰기 → 다음 곡
+  async function advance() {
+    if (!AP.on || AP.advancing || !AP.songId) return;
+    AP.advancing = true;
+    renderAuto();
+    const cur = { id: AP.songId };
+    const next = state && state.queue.find(q => q.id !== cur.id);
+    let ok = await setStatus(next || cur, next ? 'playing' : 'played');   // 다음 곡을 틀면 지금 곡은 자동 완료
+    if (!ok && next) await setStatus(cur, 'played');
+    AP.advancing = false;
+    sync();
+  }
+
+  $('autoSwitch').addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      $('autoBody').hidden = false;
+      AP.msg = '유튜브 플레이어 불러오는 중…'; renderAuto();
+      try { await ensurePlayer(); }
+      catch (err) {
+        P.toast('유튜브 플레이어를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.', 'err');
+        e.target.checked = false; $('autoBody').hidden = true; AP.msg = ''; renderAuto();
+        return;
+      }
+      AP.on = true; AP.msg = ''; AP.songId = null;
+      renderAuto();
+      if (poller) poller.now(); else sync();
+    } else {
+      AP.on = false;
+      if (AP.ready) AP.player.stopVideo();
+      AP.songId = null; AP.videos = []; AP.msg = '';
+      $('autoBody').hidden = true;
+      renderAuto();
+    }
+  });
+
+  $('apPlay').addEventListener('click', () => {
+    if (!AP.ready) return;
+    const st = AP.player.getPlayerState();
+    if (st === 1 || st === 3) AP.player.pauseVideo(); else AP.player.playVideo();
+    setTimeout(renderAuto, 300);
+  });
+  $('apSkip').addEventListener('click', () => advance());
+  $('apAlt').addEventListener('click', () => {
+    if (AP.videos.length < 2) return;
+    AP.vi = (AP.vi + 1) % AP.videos.length;
+    AP.player.loadVideoById(AP.videos[AP.vi].id);
+    renderAuto();
+  });
+
+  // 자동 재생 중엔 탭이 뒤에 있어도 새 신청곡을 확인
+  setInterval(() => { if (AP.on && document.visibilityState !== 'visible') refresh().catch(() => {}); }, 15000);
+
+  $('nextBtn').addEventListener('click', () => {
+    if (!state) return;
+    if (state.queue.length) setStatus(state.queue[0], 'playing');   // 지금 곡은 자동으로 완료 처리돼요
+    else if (state.nowPlaying) setStatus(state.nowPlaying, 'played');
+  });
+
+  $('clearBtn').addEventListener('click', async () => {
+    if (!confirm('신청곡을 전부 지울까요? 되돌릴 수 없어요.')) return;
+    if (prompt('정말 지우려면 "삭제"라고 입력하세요.') !== '삭제') return;
+    const r = await admin({ action: 'clearAll' }).catch(() => ({ ok: false, message: '연결 오류' }));
+    P.toast(r.ok ? '모두 지웠어요.' : r.message, r.ok ? 'ok' : 'err');
+    refresh().catch(() => {});
+  });
+
+  // 시작
+  (async () => {
+    if (!pw) return showLogin();
+    try { (await login(pw)) ? showDJ() : showLogin(); }
+    catch (e) { showLogin(); P.toast('서버에 연결하지 못했어요.', 'err'); }
+  })();
+})();
+</script>
+</body>
+</html>
