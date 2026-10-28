@@ -21,6 +21,12 @@
 
   <div id="notice" class="notice" hidden></div>
 
+  <section id="loading" class="card closed">
+    <div class="big" id="loadIcon">⏳</div>
+    <strong id="loadTitle">불러오는 중…</strong>
+    <p id="loadMsg">잠시만 기다려 주세요.</p>
+  </section>
+
   <section id="now" class="card now" hidden aria-live="polite">
     <div class="label"><span class="eq"><i></i><i></i><i></i></span>NOW PLAYING</div>
     <div class="song" id="nowTitle"></div>
@@ -94,6 +100,7 @@
 
   function render() {
     const s = state.settings;
+    $('loading').hidden = true;
 
     $('notice').hidden = !s.notice;
     $('notice').textContent = s.notice || '';
@@ -233,9 +240,18 @@
   });
 
   let failCount = 0;
-  P.poll(async () => {
+  const poller = P.poll(async () => {
     try { await refresh(); failCount = 0; }
-    catch (e) { if (++failCount === 2) P.toast('서버에 연결하는 중이에요…', 'err'); throw e; }
+    catch (e) {
+      failCount++;
+      if (!state) {                         // 아직 한 번도 못 불러왔으면 화면에 안내
+        $('loadIcon').textContent = '📡';
+        $('loadTitle').textContent = '서버에 연결하지 못했어요';
+        $('loadMsg').textContent = '자동으로 다시 시도하고 있어요. 계속 이 화면이면 DJ에게 알려 주세요.';
+        if (failCount === 1) setTimeout(() => poller.now(), 3000);
+      } else if (failCount === 2) P.toast('서버에 연결하는 중이에요…', 'err');
+      throw e;
+    }
   }, 12000);
 })();
 </script>
